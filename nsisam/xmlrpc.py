@@ -13,7 +13,7 @@ class XmlrpcHandler(cyclone.web.XmlrpcRequestHandler):
 
     allowNone = True
 
-    def get_current_user(self):
+    def _get_current_user(self):
         auth = self.request.headers.get("Authorization")
         if auth:
           return decodestring(auth.split(" ")[-1]).split(":")
@@ -31,12 +31,12 @@ class XmlrpcHandler(cyclone.web.XmlrpcRequestHandler):
     @defer.inlineCallbacks
     @cyclone.web.asynchronous
     def xmlrpc_set(self, value):
-        if not self.settings.auth.authenticate(*self.get_current_user()):
+        if not self.settings.auth.authenticate(*self._get_current_user()):
             defer.returnValue("Authorization Failed!")
         key = str(uuid4())
         db = choice(self.settings.db_list)
         today = datetime.today().strftime("%d/%m/%y %H:%M")
-        user = self.get_current_user()[0]
+        user = self._get_current_user()[0]
         data_dict = {"data":value, "size":len(value), "date":today, "from_user": user}
         result = yield db.set(key, data_dict)
         defer.returnValue(key)
@@ -44,13 +44,13 @@ class XmlrpcHandler(cyclone.web.XmlrpcRequestHandler):
     @defer.inlineCallbacks
     @cyclone.web.asynchronous
     def xmlrpc_update(self, key, value):
-        if not self.settings.auth.authenticate(*self.get_current_user()):
+        if not self.settings.auth.authenticate(*self._get_current_user()):
             defer.returnValue("Authorization Failed!")
         for db in self.settings.db_list:
             exists = yield db.exists(key)
             if exists:
                 today = datetime.today().strftime("%d/%m/%y %H:%M")
-                user = self.get_current_user()[0]
+                user = self._get_current_user()[0]
                 data_dict = {"data":value, "size":len(value), "date":today, "from_user": user}
                 result = yield db.set(key, data_dict)
                 defer.returnValue(result)
@@ -59,7 +59,7 @@ class XmlrpcHandler(cyclone.web.XmlrpcRequestHandler):
     @defer.inlineCallbacks
     @cyclone.web.asynchronous
     def xmlrpc_delete(self, key):
-        if not self.settings.auth.authenticate(*self.get_current_user()):
+        if not self.settings.auth.authenticate(*self._get_current_user()):
             defer.returnValue("Authorization Failed!")
         for db in self.settings.db_list:
             exists = yield db.exists(key)
