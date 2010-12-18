@@ -49,8 +49,7 @@ class XmlrpcHandler(cyclone.web.XmlrpcRequestHandler):
     @defer.inlineCallbacks
     @cyclone.web.asynchronous
     def xmlrpc_update(self, key, value):
-        if not self.settings.auth.authenticate(*self._get_current_user()):
-            defer.returnValue("Authorization Failed!")
+        self._check_auth()
         for db in self.settings.db_list:
             exists = yield db.exists(key)
             if exists:
@@ -64,8 +63,7 @@ class XmlrpcHandler(cyclone.web.XmlrpcRequestHandler):
     @defer.inlineCallbacks
     @cyclone.web.asynchronous
     def xmlrpc_delete(self, key):
-        if not self.settings.auth.authenticate(*self._get_current_user()):
-            defer.returnValue("Authorization Failed!")
+        self._check_auth()
         for db in self.settings.db_list:
             exists = yield db.exists(key)
             if exists:
