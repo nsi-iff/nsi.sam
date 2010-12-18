@@ -19,8 +19,14 @@ class XmlrpcHandler(cyclone.web.XmlrpcRequestHandler):
           return decodestring(auth.split(" ")[-1]).split(":")
 
     @defer.inlineCallbacks
+    def _check_auth(self):
+        if not self.settings.auth.authenticate(*self._get_current_user()):
+            defer.returnValue("Authorization Failed!")
+
+    @defer.inlineCallbacks
     @cyclone.web.asynchronous
     def xmlrpc_get(self, key):
+        self._check_auth()
         for db in iter(self.settings.db_list):
               value = yield db.get(key)
               if value:
@@ -31,8 +37,7 @@ class XmlrpcHandler(cyclone.web.XmlrpcRequestHandler):
     @defer.inlineCallbacks
     @cyclone.web.asynchronous
     def xmlrpc_set(self, value):
-        if not self.settings.auth.authenticate(*self._get_current_user()):
-            defer.returnValue("Authorization Failed!")
+        self._check_auth()
         key = str(uuid4())
         db = choice(self.settings.db_list)
         today = datetime.today().strftime("%d/%m/%y %H:%M")
