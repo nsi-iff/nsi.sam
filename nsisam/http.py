@@ -17,7 +17,7 @@ class HttpHandler(cyclone.web.RequestHandler):
     def _get_current_user(self):
         auth = self.request.headers.get("Authorization")
         if auth:
-          return auth.split(" ")[-1].split(":")
+          return decodestring(auth.split(" ")[-1]).split(":")
 
     def _check_auth(self):
       user, password = self._get_current_user()
