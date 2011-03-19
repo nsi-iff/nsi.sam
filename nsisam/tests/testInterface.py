@@ -1,8 +1,8 @@
 import unittest
 from nsisam.interfaces.auth import IAuth
-from nsisam.interfaces.xmlrpc import IXmlrpc
+from nsisam.interfaces.http import IHttp
 from nsisam.auth import Authentication
-from nsisam.xmlrpc import XmlrpcHandler
+from nsisam.http import HttpHandler
 
 class TestInterface(unittest.TestCase):
     
@@ -11,14 +11,14 @@ class TestInterface(unittest.TestCase):
         self.assertEquals(sorted(IAuth.names()), ['add_user',
                                                 'authenticate',
                                                 'del_user'])
-
+    
     def test_handler(self):
-        self.assertEquals(IXmlrpc.implementedBy(XmlrpcHandler), True)
-        self.assertEquals(sorted(IXmlrpc.names()), ['get_current_user',
-                                                'xmlrpc_delete',
-                                                'xmlrpc_get',
-                                                'xmlrpc_set',
-                                                'xmlrpc_update'])
-       
+        self.assertEquals(IHttp.implementedBy(HttpHandler), True)
+        self.assertEquals(sorted(IHttp.names()), ['delete',
+                                                'get',
+                                                'get_current_user',
+                                                'post',
+                                                'put',])
+
 if __name__ == "__main__":
     unittest.main()
