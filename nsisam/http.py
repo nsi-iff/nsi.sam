@@ -1,6 +1,7 @@
-from json import loads
+from json import loads, dumps
 from uuid import uuid4
 from base64 import decodestring
+from hashlib import sha1
 from random import choice
 from datetime import datetime
 import cyclone.web
@@ -23,7 +24,7 @@ class HttpHandler(cyclone.web.RequestHandler):
       user, password = self._get_current_user()
       if not self.settings.auth.authenticate(user, password):
           raise cyclone.web.HTTPError(401, 'Unauthorized')
-            
+
     def _load_request_as_json(self):
         return loads(self.request.body)
 
@@ -53,7 +54,10 @@ class HttpHandler(cyclone.web.RequestHandler):
         value = self._load_request_as_json().get('value')
         data_dict = {"data":value, "size":len(value), "date":today, "from_user": user}
         result = yield db.set(key, data_dict)
-        self.finish(cyclone.escape.json_encode({"key":key}))
+        checksum_calculator = sha1()
+        checksum_calculator.update(dumps(data_dict))
+        checksum = checksum_calculator.hexdigest()
+        self.finish(cyclone.escape.json_encode({"key":key, "checksum":checksum}))
 
     @defer.inlineCallbacks
     @cyclone.web.asynchronous
