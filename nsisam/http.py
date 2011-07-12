@@ -28,6 +28,11 @@ class HttpHandler(cyclone.web.RequestHandler):
     def _load_request_as_json(self):
         return loads(self.request.body)
 
+    def _calculate_sha1_checksum(self, string):
+        checksum_calculator = sha1()
+        checksum_calculator.update(string)
+        return checksum_calculator.hexdigest()
+
     @defer.inlineCallbacks
     @cyclone.web.asynchronous
     def get(self):
@@ -54,9 +59,7 @@ class HttpHandler(cyclone.web.RequestHandler):
         value = self._load_request_as_json().get('value')
         data_dict = {"data":value, "size":len(value), "date":today, "from_user": user}
         result = yield db.set(key, data_dict)
-        checksum_calculator = sha1()
-        checksum_calculator.update(dumps(data_dict))
-        checksum = checksum_calculator.hexdigest()
+        checksum = self._calculate_sha1_checksum(dumps(data_dict))
         self.finish(cyclone.escape.json_encode({"key":key, "checksum":checksum}))
 
     @defer.inlineCallbacks
@@ -74,7 +77,8 @@ class HttpHandler(cyclone.web.RequestHandler):
                 user = self._get_current_user()[0]
                 data_dict = {"data":value, "size":len(value), "date":today, "from_user": user}
                 result = yield db.set(key, data_dict)
-                self.finish(cyclone.escape.json_encode({'key':key}))
+                checksum = self._calculate_sha1_checksum(dumps(data_dict))
+                self.finish(cyclone.escape.json_encode({'key':key, 'checksum':checksum}))
             else:
                 raise cyclone.web.HTTPError(404, "Key not found.")
 
