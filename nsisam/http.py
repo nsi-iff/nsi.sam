@@ -40,7 +40,7 @@ class HttpHandler(cyclone.web.RequestHandler):
         key = self._load_request_as_json().get('key')
         value = yield self.settings.db.get(key)
         if value:
-            value = eval(value)
+            value = loads(value)
             self.set_header('Content-Type', 'application/json')
             self.finish(cyclone.escape.json_encode(value))
         else:
@@ -56,7 +56,7 @@ class HttpHandler(cyclone.web.RequestHandler):
         user = self._get_current_user()[0]
         value = self._load_request_as_json().get('value')
         data_dict = {"data":value, "size":len(value), "date":today, "from_user": user}
-        result = yield self.settings.db.set(key, data_dict)
+        result = yield self.settings.db.set(key, dumps(data_dict))
         checksum = self._calculate_sha1_checksum(dumps(data_dict))
         self.finish(cyclone.escape.json_encode({"key":key, "checksum":checksum}))
 
@@ -66,14 +66,19 @@ class HttpHandler(cyclone.web.RequestHandler):
         self._check_auth()
         json_args = self._load_request_as_json()
         key = json_args.get('key')
-        exists = yield self.settings.db.exists(key)
+        exists = self.settings.db.exists(key)
         if exists:
+            old_value_str = yield self.settings.db.get(key)
             value = json_args.get('value')
             today = datetime.today().strftime("%d/%m/%y %H:%M")
             user = self._get_current_user()[0]
-            data_dict = {"data":value, "size":len(value), "date":today, "from_user": user}
-            result = yield self.settings.db.set(key, data_dict)
-            checksum = self._calculate_sha1_checksum(dumps(data_dict))
+            old_value = loads(old_value_str)
+            old_value['data'] = value
+            if not old_value.get('history'):
+                old_value['history'] = list()
+            old_value['history'].append({'user':user, 'date':today})
+            result = yield self.settings.db.set(key, dumps(old_value))
+            checksum = self._calculate_sha1_checksum(dumps(old_value))
             self.set_header('Content-Type', 'application/json')
             self.finish(cyclone.escape.json_encode({'key':key, 'checksum':checksum}))
         else:
