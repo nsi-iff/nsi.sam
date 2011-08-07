@@ -72,13 +72,13 @@ class HttpHandler(cyclone.web.RequestHandler):
             value = json_args.get('value')
             today = datetime.today().strftime("%d/%m/%y %H:%M")
             user = self._get_current_user()[0]
-            old_value = loads(old_value_str)
-            old_value['data'] = value
-            if not old_value.get('history'):
-                old_value['history'] = list()
-            old_value['history'].append({'user':user, 'date':today})
-            result = yield self.settings.db.set(key, dumps(old_value))
-            checksum = self._calculate_sha1_checksum(dumps(old_value))
+            new_value = loads(old_value_str)
+            new_value['data'] = value
+            if not new_value.get('history'):
+                new_value['history'] = list()
+            new_value['history'].append({'user':user, 'date':today})
+            result = yield self.settings.db.set(key, dumps(new_value))
+            checksum = self._calculate_sha1_checksum(dumps(new_value))
             self.set_header('Content-Type', 'application/json')
             self.finish(cyclone.escape.json_encode({'key':key, 'checksum':checksum}))
         else:
