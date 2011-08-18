@@ -4,10 +4,26 @@ from base64 import decodestring
 from hashlib import sha1
 from random import choice
 from datetime import datetime
+import functools
 import cyclone.web
 from twisted.internet import defer
 from zope.interface import implements
 from nsisam.interfaces.http import IHttp
+
+
+def auth(method):
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        auth_type, auth_data = self.request.headers.get("Authorization").split()
+        if not auth_type == "Basic":
+            raise cyclone.web.HTTPAuthenticationRequired("Basic", realm="Restricted Access")
+        user, password = decodestring(auth_data).split(":")
+        # authentication itself
+        if not self.settings.auth.authenticate(user, password):
+            raise cyclone.web.HTTPError(401, "Unauthorized")
+        return method(self, *args, **kwargs)
+    return wrapper
+
 
 class HttpHandler(cyclone.web.RequestHandler):
 
@@ -20,11 +36,6 @@ class HttpHandler(cyclone.web.RequestHandler):
         if auth:
           return decodestring(auth.split(" ")[-1]).split(":")
 
-    def _check_auth(self):
-      user, password = self._get_current_user()
-      if not self.settings.auth.authenticate(user, password):
-          raise cyclone.web.HTTPError(401, 'Unauthorized')
-
     def _load_request_as_json(self):
         return loads(self.request.body)
 
@@ -33,10 +44,10 @@ class HttpHandler(cyclone.web.RequestHandler):
         checksum_calculator.update(string)
         return checksum_calculator.hexdigest()
 
+    @auth
     @defer.inlineCallbacks
     @cyclone.web.asynchronous
     def get(self):
-        self._check_auth()
         key = self._load_request_as_json().get('key')
         value = yield self.settings.db.get(key)
         if value:
@@ -46,10 +57,10 @@ class HttpHandler(cyclone.web.RequestHandler):
         else:
             raise cyclone.web.HTTPError(404, "Key not found.")
 
+    @auth
     @defer.inlineCallbacks
     @cyclone.web.asynchronous
     def put(self):
-        self._check_auth()
         self.set_header('Content-Type', 'application/json')
         key = str(uuid4())
         today = datetime.today().strftime("%d/%m/%y %H:%M")
@@ -60,10 +71,10 @@ class HttpHandler(cyclone.web.RequestHandler):
         checksum = self._calculate_sha1_checksum(dumps(data_dict))
         self.finish(cyclone.escape.json_encode({"key":key, "checksum":checksum}))
 
+    @auth
     @defer.inlineCallbacks
     @cyclone.web.asynchronous
     def post(self):
-        self._check_auth()
         json_args = self._load_request_as_json()
         key = json_args.get('key')
         exists = self.settings.db.exists(key)
@@ -84,10 +95,10 @@ class HttpHandler(cyclone.web.RequestHandler):
         else:
             raise cyclone.web.HTTPError(404, "Key not found.")
 
+    @auth
     @defer.inlineCallbacks
     @cyclone.web.asynchronous
     def delete(self):
-        self._check_auth()
         key = yield self._load_request_as_json().get('key')
         exists = yield self.settings.db.exists(key)
         if exists and self.settings.db.delete(key):
