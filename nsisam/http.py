@@ -14,13 +14,13 @@ from nsisam.interfaces.http import IHttp
 def auth(method):
     @functools.wraps(method)
     def wrapper(self, *args, **kwargs):
-        auth_type, auth_data = self.request.headers.get("Authorization").split()
-        if not auth_type == "Basic":
-            raise cyclone.web.HTTPAuthenticationRequired("Basic", realm="Restricted Access")
-        user, password = decodestring(auth_data).split(":")
+        auth_type, auth_data = self.request.headers.get('Authorization').split()
+        if not auth_type == 'Basic':
+            raise cyclone.web.HTTPAuthenticationRequired('Basic', realm='Restricted Access')
+        user, password = decodestring(auth_data).split(':')
         # authentication itself
         if not self.settings.auth.authenticate(user, password):
-            raise cyclone.web.HTTPError(401, "Unauthorized")
+            raise cyclone.web.HTTPError(401, 'Unauthorized')
         return method(self, *args, **kwargs)
     return wrapper
 
@@ -32,9 +32,9 @@ class HttpHandler(cyclone.web.RequestHandler):
     allowNone = True
 
     def _get_current_user(self):
-        auth = self.request.headers.get("Authorization")
+        auth = self.request.headers.get('Authorization')
         if auth:
-          return decodestring(auth.split(" ")[-1]).split(":")
+          return decodestring(auth.split(' ')[-1]).split(':')
 
     def _load_request_as_json(self):
         return loads(self.request.body)
@@ -51,11 +51,10 @@ class HttpHandler(cyclone.web.RequestHandler):
         key = self._load_request_as_json().get('key')
         value = yield self.settings.db.get(key)
         if value:
-            value = loads(value)
             self.set_header('Content-Type', 'application/json')
-            self.finish(cyclone.escape.json_encode(value))
+            self.finish(value)
         else:
-            raise cyclone.web.HTTPError(404, "Key not found.")
+            raise cyclone.web.HTTPError(404, 'Key not found.')
 
     @auth
     @defer.inlineCallbacks
@@ -63,13 +62,13 @@ class HttpHandler(cyclone.web.RequestHandler):
     def put(self):
         self.set_header('Content-Type', 'application/json')
         key = str(uuid4())
-        today = datetime.today().strftime("%d/%m/%y %H:%M")
+        today = datetime.today().strftime(u'%d/%m/%y %H:%M')
         user = self._get_current_user()[0]
         value = self._load_request_as_json().get('value')
-        data_dict = {"data":value, "size":len(value), "date":today, "from_user": user}
+        data_dict = {u'data':value, u'date':today, u'from_user': user}
         result = yield self.settings.db.set(key, dumps(data_dict))
         checksum = self._calculate_sha1_checksum(dumps(data_dict))
-        self.finish(cyclone.escape.json_encode({"key":key, "checksum":checksum}))
+        self.finish(cyclone.escape.json_encode({u'key':key, u'checksum':checksum}))
 
     @auth
     @defer.inlineCallbacks
@@ -81,19 +80,19 @@ class HttpHandler(cyclone.web.RequestHandler):
         if exists:
             old_value_str = yield self.settings.db.get(key)
             value = json_args.get('value')
-            today = datetime.today().strftime("%d/%m/%y %H:%M")
+            today = datetime.today().strftime(u'%d/%m/%y %H:%M')
             user = self._get_current_user()[0]
             new_value = loads(old_value_str)
             new_value['data'] = value
-            if not new_value.get('history'):
-                new_value['history'] = list()
-            new_value['history'].append({'user':user, 'date':today})
+            if not new_value.get(u'history'):
+                new_value[u'history'] = list()
+            new_value[u'history'].append({u'user':user, u'date':today})
             result = yield self.settings.db.set(key, dumps(new_value))
             checksum = self._calculate_sha1_checksum(dumps(new_value))
             self.set_header('Content-Type', 'application/json')
-            self.finish(cyclone.escape.json_encode({'key':key, 'checksum':checksum}))
+            self.finish(cyclone.escape.json_encode({u'key':key, u'checksum':checksum}))
         else:
-            raise cyclone.web.HTTPError(404, "Key not found.")
+            raise cyclone.web.HTTPError(404, 'Key not found.')
 
     @auth
     @defer.inlineCallbacks
@@ -103,7 +102,7 @@ class HttpHandler(cyclone.web.RequestHandler):
         exists = yield self.settings.db.exists(key)
         if exists and self.settings.db.delete(key):
             self.set_header('Content-Type', 'application/json')
-            self.finish(cyclone.escape.json_encode({'deleted':True}))
+            self.finish(cyclone.escape.json_encode({u'deleted':True}))
         else:
-            raise cyclone.web.HTTPError(404, "Key not found.")
+            raise cyclone.web.HTTPError(404, 'Key not found.')
 
