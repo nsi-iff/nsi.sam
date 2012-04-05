@@ -49,6 +49,8 @@ class HttpHandler(cyclone.web.RequestHandler):
     @cyclone.web.asynchronous
     def get(self):
         key = self._load_request_as_json().get('key')
+        if not key:
+            raise cyclone.web.HTTPError(400, 'Malformed request.')
         value = yield self.settings.db.get(key)
         if value:
             self.set_header('Content-Type', 'application/json')
@@ -65,6 +67,8 @@ class HttpHandler(cyclone.web.RequestHandler):
         today = datetime.today().strftime(u'%d/%m/%y %H:%M')
         user = self._get_current_user()[0]
         value = self._load_request_as_json().get('value')
+        if not value:
+            raise cyclone.web.HTTPError(400, 'Malformed request.')
         data_dict = {u'data':value, u'date':today, u'from_user': user}
         result = yield self.settings.db.set(key, dumps(data_dict))
         checksum = self._calculate_sha1_checksum(dumps(data_dict))
@@ -76,6 +80,8 @@ class HttpHandler(cyclone.web.RequestHandler):
     def post(self):
         json_args = self._load_request_as_json()
         key = json_args.get('key')
+        if not key:
+            raise cyclobe.web.HTTPError(400, 'Malformed request.')
         exists = self.settings.db.exists(key)
         if exists:
             old_value_str = yield self.settings.db.get(key)
@@ -99,6 +105,8 @@ class HttpHandler(cyclone.web.RequestHandler):
     @cyclone.web.asynchronous
     def delete(self):
         key = yield self._load_request_as_json().get('key')
+        if not key:
+            raise cyclone.web.HTTPError(400, 'Malformed request.')
         exists = yield self.settings.db.exists(key)
         if exists and self.settings.db.delete(key):
             self.set_header('Content-Type', 'application/json')
