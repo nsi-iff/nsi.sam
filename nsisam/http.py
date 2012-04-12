@@ -7,6 +7,7 @@ from datetime import datetime
 import functools
 import cyclone.web
 from twisted.internet import defer
+from twisted.python import log
 from zope.interface import implements
 from nsisam.interfaces.http import IHttp
 
@@ -20,6 +21,8 @@ def auth(method):
         user, password = decodestring(auth_data).split(':')
         # authentication itself
         if not self.settings.auth.authenticate(user, password):
+            log.msg("Authentication failed.")
+            log.msg("User '%s' and password '%s' not known." % (user, password))
             raise cyclone.web.HTTPError(401, 'Unauthorized')
         return method(self, *args, **kwargs)
     return wrapper
@@ -50,12 +53,17 @@ class HttpHandler(cyclone.web.RequestHandler):
     def get(self):
         key = self._load_request_as_json().get('key')
         if not key:
+            log.msg("GET failed!")
+            log.msg("Request didn't have a key to find.")
             raise cyclone.web.HTTPError(400, 'Malformed request.')
         value = yield self.settings.db.get(key)
         if value:
+            log.msg("Found the value for the key %s" % key)
             self.set_header('Content-Type', 'application/json')
             self.finish(value)
         else:
+            log.msg("GET failed!")
+            log.msg("Couldn't find any value for the key: %s" % key)
             raise cyclone.web.HTTPError(404, 'Key not found.')
 
     @auth
@@ -68,10 +76,13 @@ class HttpHandler(cyclone.web.RequestHandler):
         user = self._get_current_user()[0]
         value = self._load_request_as_json().get('value')
         if not value:
+            log.msg("PUT failed!")
+            log.msg("Request didn't have a value to store.")
             raise cyclone.web.HTTPError(400, 'Malformed request.')
         data_dict = {u'data':value, u'date':today, u'from_user': user}
         result = yield self.settings.db.set(key, dumps(data_dict))
         checksum = self._calculate_sha1_checksum(dumps(data_dict))
+        log.msg("Value stored at key %s." % key)
         self.finish(cyclone.escape.json_encode({u'key':key, u'checksum':checksum}))
 
     @auth
@@ -81,11 +92,17 @@ class HttpHandler(cyclone.web.RequestHandler):
         json_args = self._load_request_as_json()
         key = json_args.get('key')
         if not key:
+            log.msg("POST failed!")
+            log.msg("Request didn't have a key to update.")
             raise cyclobe.web.HTTPError(400, 'Malformed request.')
-        exists = self.settings.db.exists(key)
+        exists = yield self.settings.db.exists(key)
         if exists:
             old_value_str = yield self.settings.db.get(key)
             value = json_args.get('value')
+            if not value:
+                log.msg("POST failed!")
+                log.msg("Request didn't have a new value to store.")
+                raise cyclone.web.HTTPError(400, 'Malformed request.')
             today = datetime.today().strftime(u'%d/%m/%y %H:%M')
             user = self._get_current_user()[0]
             new_value = loads(old_value_str)
@@ -96,8 +113,11 @@ class HttpHandler(cyclone.web.RequestHandler):
             result = yield self.settings.db.set(key, dumps(new_value))
             checksum = self._calculate_sha1_checksum(dumps(new_value))
             self.set_header('Content-Type', 'application/json')
+            log.msg("Value updated at key %s." % key)
             self.finish(cyclone.escape.json_encode({u'key':key, u'checksum':checksum}))
         else:
+            log.msg("POST failed!")
+            log.msg("Couldn't find any value for the key: %s" % key)
             raise cyclone.web.HTTPError(404, 'Key not found.')
 
     @auth
@@ -106,11 +126,16 @@ class HttpHandler(cyclone.web.RequestHandler):
     def delete(self):
         key = yield self._load_request_as_json().get('key')
         if not key:
+            log.msg("DELETE failed!")
+            log.msg("Request didn't have a key to delete.")
             raise cyclone.web.HTTPError(400, 'Malformed request.')
         exists = yield self.settings.db.exists(key)
         if exists and self.settings.db.delete(key):
             self.set_header('Content-Type', 'application/json')
+            log.msg("Key %s and its value deleted." % key)
             self.finish(cyclone.escape.json_encode({u'deleted':True}))
         else:
+            log.msg("DELETE failed!")
+            log.msg("Couldn't find any value for the key: %s" % key)
             raise cyclone.web.HTTPError(404, 'Key not found.')
 
