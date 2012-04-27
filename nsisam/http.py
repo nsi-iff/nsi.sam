@@ -1,7 +1,7 @@
 from json import loads, dumps
 from uuid import uuid4
 from base64 import decodestring
-from hashlib import sha1
+from hashlib import sha512
 from random import choice
 from datetime import datetime
 import functools
@@ -43,9 +43,11 @@ class HttpHandler(cyclone.web.RequestHandler):
         return loads(self.request.body)
 
     def _calculate_sha1_checksum(self, string):
-        checksum_calculator = sha1()
+        checksum_calculator = sha512()
         checksum_calculator.update(string)
-        return checksum_calculator.hexdigest()
+        digest = checksum_calculator.hexdigest()
+        del checksum_calculator
+        return digest
 
     @auth
     @defer.inlineCallbacks
