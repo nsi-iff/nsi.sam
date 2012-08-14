@@ -73,7 +73,7 @@ class HttpHandler(cyclone.web.RequestHandler):
     @cyclone.web.asynchronous
     def put(self):
         self.set_header('Content-Type', 'application/json')
-        key = str(uuid4())
+        key = yield str(uuid4())
         today = datetime.today().strftime(u'%d/%m/%y %H:%M')
         user = self._get_current_user()[0]
         value = self._load_request_as_json().get('value')
@@ -82,8 +82,11 @@ class HttpHandler(cyclone.web.RequestHandler):
             log.msg("Request didn't have a value to store.")
             raise cyclone.web.HTTPError(400, 'Malformed request.')
         data_dict = {u'data':value, u'date':today, u'from_user': user}
-        result = yield self.settings.db.set(key, dumps(data_dict))
-        checksum = self._calculate_sha1_checksum(dumps(data_dict))
+        json_dict = dumps(data_dict)
+        del data_dict
+        result = self.settings.db.set(key, json_dict)
+        checksum = self._calculate_sha1_checksum(json_dict)
+        del json_dict
         log.msg("Value stored at key %s." % key)
         self.finish(cyclone.escape.json_encode({u'key':key, u'checksum':checksum}))
 
