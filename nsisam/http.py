@@ -29,6 +29,18 @@ def auth(method):
     return wrapper
 
 
+class FileHandler(cyclone.web.RequestHandler):
+
+    @cyclone.web.asynchronous
+    def get(self, key):
+        self.set_header('Content-Type', 'video/ogg')
+        file_ = open(join(self.settings.file_path, key))
+        self.write(file_.read())
+        file_.close()
+        del file_
+        self.finish()
+
+
 class HttpHandler(cyclone.web.RequestHandler):
 
     implements(IHttp)
