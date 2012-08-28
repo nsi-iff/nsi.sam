@@ -1,9 +1,10 @@
 from json import loads, dumps
 from uuid import uuid4
-from base64 import decodestring
+from base64 import decodestring, encodestring
 from hashlib import sha512
 from random import choice
 from datetime import datetime
+from os.path import join
 import functools
 import cyclone.web
 from twisted.internet import defer
@@ -60,6 +61,11 @@ class HttpHandler(cyclone.web.RequestHandler):
             raise cyclone.web.HTTPError(400, 'Malformed request.')
         value = yield self.settings.db.get(key)
         if value:
+            value_json = loads(value)
+            file_in_fs = value_json.get('file_in_fs')
+            if file_in_fs:
+                value_json['data']['file'] = encodestring(open(join(self.settings.file_path, key)).read())
+                value = dumps(value_json)
             log.msg("Found the value for the key %s" % key)
             self.set_header('Content-Type', 'application/json')
             self.finish(value)
@@ -81,7 +87,12 @@ class HttpHandler(cyclone.web.RequestHandler):
             log.msg("PUT failed!")
             log.msg("Request didn't have a value to store.")
             raise cyclone.web.HTTPError(400, 'Malformed request.')
-        data_dict = {u'data':value, u'date':today, u'from_user': user}
+        if isinstance(value, dict) and value.get('filename') and value.get('file') and value['filename'].endswith('.ogv'):
+            self._store_file_in_fs(value['file'], key)
+            del value['file']
+            data_dict = {u'date':today, u'from_user': user, u'file_in_fs':True, u'data':value}
+        else:
+            data_dict = {u'data':value, u'date':today, u'from_user': user}
         json_dict = dumps(data_dict)
         del data_dict
         result = self.settings.db.set(key, json_dict)
@@ -89,6 +100,10 @@ class HttpHandler(cyclone.web.RequestHandler):
         del json_dict
         log.msg("Value stored at key %s." % key)
         self.finish(cyclone.escape.json_encode({u'key':key, u'checksum':checksum}))
+
+    def _store_file_in_fs(self, content, key):
+        file_ = open(join(self.settings.file_path, key), 'w+')
+        file_.write(decodestring(content))
 
     @auth
     @defer.inlineCallbacks
