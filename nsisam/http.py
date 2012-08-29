@@ -5,6 +5,7 @@ from hashlib import sha512
 from random import choice
 from datetime import datetime
 from os.path import join
+from os import remove
 import functools
 import cyclone.web
 from twisted.internet import defer
@@ -130,18 +131,18 @@ class HttpHandler(cyclone.web.RequestHandler):
         exists = yield self.settings.db.exists(key)
         if exists:
             old_value_str = yield self.settings.db.get(key)
-            value = json_args.get('value')
-            if not value:
+            value_to_store = json_args.get('value')
+            if not value_to_store:
                 log.msg("POST failed!")
                 log.msg("Request didn't have a new value to store.")
                 raise cyclone.web.HTTPError(400, 'Malformed request.')
-            today = datetime.today().strftime(u'%d/%m/%y %H:%M')
-            user = self._get_current_user()[0]
             new_value = loads(old_value_str)
-            new_value['data'] = value
-            if not new_value.get(u'history'):
-                new_value[u'history'] = list()
-            new_value[u'history'].append({u'user':user, u'date':today})
+            if isinstance(value_to_store, dict) and value_to_store.get('filename'):
+                if value_to_store.get('file') and value_to_store['filename'].endswith('.ogv'):
+                    self._store_file_in_fs(value_to_store['file'], key)
+                    del value_to_store['file']
+            new_value['data'] = value_to_store
+            self._update_history(new_value)
             result = yield self.settings.db.set(key, dumps(new_value))
             checksum = self._calculate_sha1_checksum(dumps(new_value))
             self.set_header('Content-Type', 'application/json')
@@ -151,6 +152,13 @@ class HttpHandler(cyclone.web.RequestHandler):
             log.msg("POST failed!")
             log.msg("Couldn't find any value for the key: %s" % key)
             raise cyclone.web.HTTPError(404, 'Key not found.')
+
+    def _update_history(self, value):
+        today = datetime.today().strftime(u'%d/%m/%y %H:%M')
+        user = self._get_current_user()[0]
+        if not value.get(u'history'):
+            value[u'history'] = list()
+        value[u'history'].append({u'user':user, u'date':today})
 
     @auth
     @defer.inlineCallbacks
@@ -163,6 +171,10 @@ class HttpHandler(cyclone.web.RequestHandler):
             raise cyclone.web.HTTPError(400, 'Malformed request.')
         exists = yield self.settings.db.exists(key)
         if exists and self.settings.db.delete(key):
+            try:
+                remove(join(self.settings.file_path, key))
+            except OSError:
+                pass
             self.set_header('Content-Type', 'application/json')
             log.msg("Key %s and its value deleted." % key)
             self.finish(cyclone.escape.json_encode({u'deleted':True}))
