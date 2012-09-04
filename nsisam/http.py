@@ -110,7 +110,7 @@ class HttpHandler(cyclone.web.RequestHandler):
             data_dict = {u'data':value, u'date':today, u'from_user': user}
         json_dict = dumps(data_dict)
         del data_dict
-        result = self.settings.db.set(key, json_dict)
+        result = yield self.settings.db.set(key, json_dict)
         checksum = self._calculate_sha1_checksum(json_dict)
         del json_dict
         log.msg("Value stored at key %s." % key)
