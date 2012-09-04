@@ -65,7 +65,6 @@ class HttpHandler(cyclone.web.RequestHandler):
 
     @auth
     @defer.inlineCallbacks
-    @cyclone.web.asynchronous
     def get(self):
         key = self._load_request_as_json().get('key')
         if not key:
@@ -89,7 +88,6 @@ class HttpHandler(cyclone.web.RequestHandler):
 
     @auth
     @defer.inlineCallbacks
-    @cyclone.web.asynchronous
     def put(self):
         self.set_header('Content-Type', 'application/json')
         key = yield str(uuid4())
@@ -129,7 +127,6 @@ class HttpHandler(cyclone.web.RequestHandler):
 
     @auth
     @defer.inlineCallbacks
-    @cyclone.web.asynchronous
     def post(self):
         json_args = self._load_request_as_json()
         key = json_args.get('key')
@@ -180,7 +177,6 @@ class HttpHandler(cyclone.web.RequestHandler):
 
     @auth
     @defer.inlineCallbacks
-    @cyclone.web.asynchronous
     def delete(self):
         key = yield self._load_request_as_json().get('key')
         if not key:
