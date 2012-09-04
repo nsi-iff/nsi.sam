@@ -95,13 +95,15 @@ class HttpHandler(cyclone.web.RequestHandler):
         key = yield str(uuid4())
         today = datetime.today().strftime(u'%d/%m/%y %H:%M')
         user = self._get_current_user()[0]
-        value = self._load_request_as_json().get('value')
+        request = self._load_request_as_json()
+        value = request.get('value')
+        expire = request.get('expire')
         if not value:
             log.msg("PUT failed!")
             log.msg("Request didn't have a value to store.")
             raise cyclone.web.HTTPError(400, 'Malformed request.')
-        if isinstance(value, dict) and value.get('filename') and value.get('file') and value['filename'].endswith('.ogv'):
-            self._store_file_in_fs(value['file'], key)
+        if self._is_file(value):
+            self._store_file_in_fs(value, key)
             del value['file']
             data_dict = {u'date':today, u'from_user': user, u'file_in_fs':True, u'data':value}
         else:
@@ -112,9 +114,16 @@ class HttpHandler(cyclone.web.RequestHandler):
         checksum = self._calculate_sha1_checksum(json_dict)
         del json_dict
         log.msg("Value stored at key %s." % key)
+        if expire:
+            self.settings.db.expire(key, expire)
         self.finish(cyclone.escape.json_encode({u'key':key, u'checksum':checksum}))
 
-    def _store_file_in_fs(self, content, key):
+    def _is_file(self, value):
+        if isinstance(value, dict) and value.get('filename') and value.get('file') and value['filename'].endswith('.ogv'):
+            return True
+        return False
+
+    def _store_file_in_fs(self, content, key, value):
         file_ = open(join(self.settings.file_path, key), 'w+')
         file_.write(decodestring(content))
 
@@ -124,27 +133,26 @@ class HttpHandler(cyclone.web.RequestHandler):
     def post(self):
         json_args = self._load_request_as_json()
         key = json_args.get('key')
-        if not key:
-            log.msg("POST failed!")
-            log.msg("Request didn't have a key to update.")
-            raise cyclobe.web.HTTPError(400, 'Malformed request.')
+        self._check_var_existence(key, 400, "Request didn't have a kew to update.",
+                                  "Malformed request", "POST")
         exists = yield self.settings.db.exists(key)
         if exists:
             old_value_str = yield self.settings.db.get(key)
             value_to_store = json_args.get('value')
-            if not value_to_store:
-                log.msg("POST failed!")
-                log.msg("Request didn't have a new value to store.")
-                raise cyclone.web.HTTPError(400, 'Malformed request.')
-            new_value = loads(old_value_str)
-            if isinstance(value_to_store, dict) and value_to_store.get('filename'):
-                if value_to_store.get('file') and value_to_store['filename'].endswith('.ogv'):
+            self._check_var_existence(value_to_store, 400, "Request didn't have a new value to store.",
+                                      "Malformed request", "POST")
+            if self._is_file(value_to_store):
                     self._store_file_in_fs(value_to_store['file'], key)
                     del value_to_store['file']
+            new_value = loads(old_value_str)
+            del old_value_str
             new_value['data'] = value_to_store
             self._update_history(new_value)
-            result = yield self.settings.db.set(key, dumps(new_value))
-            checksum = self._calculate_sha1_checksum(dumps(new_value))
+            new_value_str = dumps(new_value)
+            del new_value
+            result = yield self.settings.db.set(key, new_value_str)
+            checksum = self._calculate_sha1_checksum(new_value_str)
+            del new_value_str
             self.set_header('Content-Type', 'application/json')
             log.msg("Value updated at key %s." % key)
             self.finish(cyclone.escape.json_encode({u'key':key, u'checksum':checksum}))
@@ -152,6 +160,13 @@ class HttpHandler(cyclone.web.RequestHandler):
             log.msg("POST failed!")
             log.msg("Couldn't find any value for the key: %s" % key)
             raise cyclone.web.HTTPError(404, 'Key not found.')
+
+    def _check_var_existence(self, var, error_code, error_message, short_message, http_verb):
+        if not var:
+            log.msg("%s failed." % http_verb.upper())
+            log.msg(error_message)
+            raise cyclone.web.HTTPError(error_code, short_message)
+
 
     def _update_history(self, value):
         today = datetime.today().strftime(u'%d/%m/%y %H:%M')
