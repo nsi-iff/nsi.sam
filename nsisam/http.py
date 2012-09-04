@@ -133,6 +133,7 @@ class HttpHandler(cyclone.web.RequestHandler):
     def post(self):
         json_args = self._load_request_as_json()
         key = json_args.get('key')
+        expire = json_args.get('expire')
         self._check_var_existence(key, 400, "Request didn't have a kew to update.",
                                   "Malformed request", "POST")
         exists = yield self.settings.db.exists(key)
@@ -153,6 +154,8 @@ class HttpHandler(cyclone.web.RequestHandler):
             result = yield self.settings.db.set(key, new_value_str)
             checksum = self._calculate_sha1_checksum(new_value_str)
             del new_value_str
+            if expire:
+                self.settings.db.expire(key, expire)
             self.set_header('Content-Type', 'application/json')
             log.msg("Value updated at key %s." % key)
             self.finish(cyclone.escape.json_encode({u'key':key, u'checksum':checksum}))
