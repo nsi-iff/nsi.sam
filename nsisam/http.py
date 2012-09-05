@@ -12,6 +12,7 @@ from twisted.internet import defer
 from twisted.python import log
 from zope.interface import implements
 from nsisam.interfaces.http import IHttp
+from pbs import mimetype
 
 
 def auth(method):
@@ -32,14 +33,19 @@ def auth(method):
 
 class FileHandler(cyclone.web.RequestHandler):
 
-    @cyclone.web.asynchronous
     def get(self, key):
-        self.set_header('Content-Type', 'video/ogg')
-        file_ = open(join(self.settings.file_path, key))
+        path = join(self.settings.file_path, key)
+        mimetype_output = str(mimetype("-b", path)).splitlines()[0]
+        self.set_header('Content-Type', mimetype_output)
+        file_ = open(path)
+        # chunk = file_.read(1024)
+        # while chunk:
+        #     self.write(chunk)
+        #     chunk = file_.read(1024)
         self.write(file_.read())
+        self.flush()
         file_.close()
         del file_
-        self.finish()
 
 
 class HttpHandler(cyclone.web.RequestHandler):
@@ -79,7 +85,7 @@ class HttpHandler(cyclone.web.RequestHandler):
                 sleep(1)
                 try:
                     value_json = loads(value)
-                except TypeError
+                except TypeError:
                     raise cyclone.web.HTTPError(500)
             file_in_fs = value_json.get('file_in_fs')
             if file_in_fs:
@@ -124,13 +130,13 @@ class HttpHandler(cyclone.web.RequestHandler):
         self.finish(cyclone.escape.json_encode({u'key':key, u'checksum':checksum}))
 
     def _is_file(self, value):
-        if isinstance(value, dict) and value.get('filename') and value.get('file') and value['filename'].endswith('.ogv'):
+        if isinstance(value, dict) and value.get('filename') and value.get('file'):
             return True
         return False
 
-    def _store_file_in_fs(self, content, key, value):
-        file_ = open(join(self.settings.file_path, key), 'w+')
-        file_.write(decodestring(content))
+    def _store_file_in_fs(self, value, key):
+        file_ = open(join(self.settings.file_path, key), 'w')
+        file_.write(decodestring(value['file']))
 
     @auth
     @defer.inlineCallbacks
@@ -193,7 +199,8 @@ class HttpHandler(cyclone.web.RequestHandler):
         exists = yield self.settings.db.exists(key)
         if exists and self.settings.db.delete(key):
             try:
-                remove(join(self.settings.file_path, key))
+                path_to_remove = join(self.settings.file_path, key)
+                remove(path_to_remove)
             except OSError:
                 pass
             self.set_header('Content-Type', 'application/json')
