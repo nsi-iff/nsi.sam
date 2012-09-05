@@ -22,6 +22,7 @@ setup(name='nsi.sam',
         "simplejson",
         "cyclone",
         "twisted",
+        "pbs",
       ],
       entry_points="""
       # -*- Entry points: -*-
