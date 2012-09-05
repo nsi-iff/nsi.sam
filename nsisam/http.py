@@ -73,7 +73,14 @@ class HttpHandler(cyclone.web.RequestHandler):
             raise cyclone.web.HTTPError(400, 'Malformed request.')
         value = yield self.settings.db.get(key)
         if value:
-            value_json = loads(value)
+            try:
+                value_json = loads(value)
+            except TypeError:
+                sleep(1)
+                try:
+                    value_json = loads(value)
+                except TypeError
+                    raise cyclone.web.HTTPError(500)
             file_in_fs = value_json.get('file_in_fs')
             if file_in_fs:
                 value_json['data']['file'] = encodestring(open(join(self.settings.file_path, key)).read())
