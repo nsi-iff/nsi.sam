@@ -136,7 +136,9 @@ class HttpHandler(cyclone.web.RequestHandler):
 
     def _store_file_in_fs(self, value, key):
         file_ = open(join(self.settings.file_path, key), 'w')
-        file_.write(decodestring(value['file']))
+        encoded_content = value['file']
+        decoded_content = decodestring(encoded_content)
+        file_.write(decoded_content)
 
     @auth
     @defer.inlineCallbacks
@@ -153,7 +155,7 @@ class HttpHandler(cyclone.web.RequestHandler):
             self._check_var_existence(value_to_store, 400, "Request didn't have a new value to store.",
                                       "Malformed request", "POST")
             if self._is_file(value_to_store):
-                    self._store_file_in_fs(value_to_store['file'], key)
+                    self._store_file_in_fs(value_to_store, key)
                     del value_to_store['file']
             new_value = loads(old_value_str)
             del old_value_str
