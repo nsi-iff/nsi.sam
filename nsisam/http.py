@@ -89,7 +89,7 @@ class HttpHandler(cyclone.web.RequestHandler):
                     raise cyclone.web.HTTPError(500)
             file_in_fs = value_json.get('file_in_fs')
             if file_in_fs:
-                value_json['data']['file'] = encodestring(open(join(self.settings.file_path, key)).read())
+                value_json['data']['file'] = encodestring(open(join(self.settings.file_path, key), 'rb').read())
                 value = dumps(value_json)
             log.msg("Found the value for the key %s" % key)
             self.set_header('Content-Type', 'application/json')
@@ -135,7 +135,7 @@ class HttpHandler(cyclone.web.RequestHandler):
         return False
 
     def _store_file_in_fs(self, value, key):
-        file_ = open(join(self.settings.file_path, key), 'w')
+        file_ = open(join(self.settings.file_path, key), 'wb')
         encoded_content = value['file']
         decoded_content = decodestring(encoded_content)
         file_.write(decoded_content)
