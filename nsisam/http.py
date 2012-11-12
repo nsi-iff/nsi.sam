@@ -114,7 +114,7 @@ class HttpHandler(cyclone.web.RequestHandler):
             log.msg("Request didn't have a value to store.")
             raise cyclone.web.HTTPError(400, 'Malformed request.')
         if self._is_file(value):
-            self._store_file_in_fs(value, key)
+            value['checksum'] = self._store_file_in_fs(value, key)
             del value['file']
             data_dict = {u'date':today, u'from_user': user, u'file_in_fs':True, u'data':value}
         else:
@@ -139,6 +139,7 @@ class HttpHandler(cyclone.web.RequestHandler):
         encoded_content = value['file']
         decoded_content = decodestring(encoded_content)
         file_.write(decoded_content)
+        return self._calculate_sha1_checksum(decoded_content)
 
     @auth
     @defer.inlineCallbacks
@@ -155,7 +156,7 @@ class HttpHandler(cyclone.web.RequestHandler):
             self._check_var_existence(value_to_store, 400, "Request didn't have a new value to store.",
                                       "Malformed request", "POST")
             if self._is_file(value_to_store):
-                    self._store_file_in_fs(value_to_store, key)
+                    value_to_store['checksum'] = self._store_file_in_fs(value_to_store, key)
                     del value_to_store['file']
             new_value = loads(old_value_str)
             del old_value_str
