@@ -101,7 +101,7 @@ class HttpHandler(cyclone.web.RequestHandler):
 
     @auth
     @defer.inlineCallbacks
-    def put(self):
+    def post(self):
         self.set_header('Content-Type', 'application/json')
         key = yield str(uuid4())
         today = datetime.today().strftime(u'%d/%m/%y %H:%M')
@@ -110,7 +110,7 @@ class HttpHandler(cyclone.web.RequestHandler):
         value = request.get('value')
         expire = request.get('expire')
         if not value:
-            log.msg("PUT failed!")
+            log.msg("POST failed!")
             log.msg("Request didn't have a value to store.")
             raise cyclone.web.HTTPError(400, 'Malformed request.')
         if self._is_file(value):
@@ -143,18 +143,18 @@ class HttpHandler(cyclone.web.RequestHandler):
 
     @auth
     @defer.inlineCallbacks
-    def post(self):
+    def put(self):
         json_args = self._load_request_as_json()
         key = json_args.get('key')
         expire = json_args.get('expire')
         self._check_var_existence(key, 400, "Request didn't have a kew to update.",
-                                  "Malformed request", "POST")
+                                  "Malformed request", "PUT")
         exists = yield self.settings.db.exists(key)
         if exists:
             old_value_str = yield self.settings.db.get(key)
             value_to_store = json_args.get('value')
             self._check_var_existence(value_to_store, 400, "Request didn't have a new value to store.",
-                                      "Malformed request", "POST")
+                                      "Malformed request", "PUT")
             if self._is_file(value_to_store):
                     value_to_store['checksum'] = self._store_file_in_fs(value_to_store, key)
                     del value_to_store['file']
@@ -173,7 +173,7 @@ class HttpHandler(cyclone.web.RequestHandler):
             log.msg("Value updated at key %s." % key)
             self.finish(cyclone.escape.json_encode({u'key':key, u'checksum':checksum}))
         else:
-            log.msg("POST failed!")
+            log.msg("PUT failed!")
             log.msg("Couldn't find any value for the key: %s" % key)
             raise cyclone.web.HTTPError(404, 'Key not found.')
 
