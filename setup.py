@@ -23,6 +23,8 @@ setup(name='nsi.sam',
         "cyclone",
         "twisted",
         "pbs",
+        "celery",
+        "restfulie",
       ],
       entry_points="""
       # -*- Entry points: -*-
