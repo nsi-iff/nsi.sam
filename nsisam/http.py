@@ -5,8 +5,10 @@ from hashlib import sha512
 from random import choice
 from datetime import datetime
 from os.path import join
-from os import remove
+from os import remove, stat
+from math import floor
 import functools
+import commands
 import cyclone.web
 from twisted.internet import defer
 from twisted.python import log
@@ -33,19 +35,55 @@ def auth(method):
 
 class FileHandler(cyclone.web.RequestHandler):
 
+    @defer.inlineCallbacks
     def get(self, key):
         path = join(self.settings.file_path, key)
         mimetype_output = str(mimetype("-b", path)).splitlines()[0]
         self.set_header('Content-Type', mimetype_output)
-        file_ = open(path)
-        # chunk = file_.read(1024)
-        # while chunk:
-        #     self.write(chunk)
-        #     chunk = file_.read(1024)
-        self.write(file_.read())
-        self.flush()
-        file_.close()
-        del file_
+        self.set_header('Accept-Ranges','bytes')
+        self.file = open(path, 'rb')
+        stat_result = stat(path)
+
+        if 'Range' not in self.request.headers:
+            self.bytes_start = 0
+            self.bytes_end = stat_result.st_size - 1
+            log.msg('Serving entire file...')
+            video_row = yield self.settings.db.get(key)
+            video_row = loads(video_row)
+            filename = video_row.get('data').get('filename')
+            if filename:
+                video_duration = filename[:-4].split('_')[-1]
+                print video_duration
+                self.set_header('X-Content-Duration', video_duration)
+        else:
+            log.msg('Serving partial file...')
+            self.set_status(206)
+            rangestr = self.request.headers['Range'].split('=')[1]
+            start, end = rangestr.split('-')
+            self.bytes_start = int(start)
+            if not end:
+                self.bytes_end = stat_result.st_size - 1
+            else:
+                self.bytes_end = int(end)
+            clenheader = 'bytes %s-%s/%s' % (self.bytes_start, self.bytes_end, stat_result.st_size)
+            self.set_header('Content-Range', clenheader)
+            log.msg('set content range header %s' % clenheader)
+        self.bytes_remaining = self.bytes_end - self.bytes_start + 1
+        self.set_header('Content-Length', self.bytes_remaining)
+        self.bufsize = 4096 * 16
+        self.flush() # flush out the headers
+        self.stream_one()
+
+    def stream_one(self):
+        while not self.bytes_remaining == 0:
+            data = self.file.read(min(self.bytes_remaining, self.bufsize))
+            self.bytes_remaining -= len(data)
+            self.write(data)
+        if self.bytes_remaining == 0:
+            self.file.close()
+            self.finish()
+
+
 
 
 class HttpHandler(cyclone.web.RequestHandler):
